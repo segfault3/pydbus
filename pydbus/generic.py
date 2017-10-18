@@ -90,6 +90,9 @@ class signal(object):
 		for cb in self.map.get(object, []):
 			cb(*args)
 
+	def __call__(self, object, *args):
+		self.emit(object, *args)
+
 	def __get__(self, instance, owner):
 		if instance is None:
 			return self
