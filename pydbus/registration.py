@@ -6,6 +6,7 @@ from .exitable import ExitableWithAliases
 from functools import partial
 from .method_call_context import MethodCallContext
 import logging
+import threading
 
 try:
 	from inspect import signature, Parameter
@@ -52,6 +53,11 @@ class ObjectWrapper(ExitableWithAliases("unwrap")):
 	SignalEmitted = generic.signal()
 
 	def call_method(self, connection, sender, object_path, interface_name, method_name, parameters, invocation):
+		thread = threading.Thread(target=self.do_call_method, args=(connection, sender, object_path, interface_name,
+																	method_name, parameters, invocation))
+		thread.start()
+
+	def do_call_method(self, connection, sender, object_path, interface_name, method_name, parameters, invocation):
 		try:
 			try:
 				outargs = self.outargs[interface_name + "." + method_name]
@@ -117,7 +123,7 @@ class ObjectWrapper(ExitableWithAliases("unwrap")):
 class ObjectRegistration(ExitableWithAliases("unregister")):
 	__slots__ = ()
 
-	def __init__(self, bus, path, interfaces, wrapper, own_wrapper=False):
+	def __init__(self, bus, path, interfaces, wrapper, own_wrapper=False, handle_method_invocations_in_thread=False):
 		if own_wrapper:
 			self._at_exit(wrapper.__exit__)
 
@@ -139,7 +145,7 @@ class ObjectRegistration(ExitableWithAliases("unregister")):
 class RegistrationMixin:
 	__slots__ = ()
 
-	def register_object(self, path, object, node_info):
+	def register_object(self, path, object, node_info, handle_method_invocations_in_thread=False):
 		if node_info is None:
 			try:
 				node_info = type(object).dbus
@@ -153,4 +159,4 @@ class RegistrationMixin:
 		interfaces = sum((ni.interfaces for ni in node_info), [])
 
 		wrapper = ObjectWrapper(object, interfaces)
-		return ObjectRegistration(self, path, interfaces, wrapper, own_wrapper=True)
+		return ObjectRegistration(self, path, interfaces, wrapper, own_wrapper=True, handle_method_invocations_in_thread=handle_method_invocations_in_thread)
